@@ -13,7 +13,7 @@
   --accent-2:#00e0a6;
   --glass: rgba(255,255,255,0.03);
   --mono: 'Courier New', monospace;
-  font-family: Inter, system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
 }
 *{box-sizing:border-box}
 html,body,#app{height:100%}
@@ -120,9 +120,9 @@ body{
 import { ethers } from "ethers";
 import { createClient } from "@supabase/supabase-js";
 
-// မင်းရဲ့ Supabase Credentials အမှန်များ
+// Supabase Configuration (🔑 Key အမှန် ပြင်ဆင်ပြီး)
 const SUPABASE_URL = "https://uvpvldszwapaqqfrccrl.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2cHZsZHN6d2FwYXFxZnJjY3JsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgxNjIzNDIsImV4cCI6MjA2MzczODM0Mn0.U4_w6pM06ZJcl8WpU3_b_L5-7FC8-9dq-ExampleKey"; 
+const SUPABASE_ANON_KEY = "sb_publishable_ZVgNDY0qOMwHrvDh4ZqMMw_tFC8-9dq"; 
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -159,15 +159,15 @@ async function fetchUserData(address) {
       .from('user_points')
       .select('points')
       .eq('wallet_address', address.toLowerCase())
-      .single();
+      .maybeSingle();
     
-    if (error && error.code === 'PGRST116') {
+    if (!data) {
       // User အသစ်ဖြစ်နေရင် Database ထဲမှာ Point 0 နဲ့ သွားဆောက်မယ်
       await supabase
         .from('user_points')
         .insert([{ wallet_address: address.toLowerCase(), points: 0 }]);
       state.fdx = 0;
-    } else if (data) {
+    } else {
       state.fdx = data.points;
     }
     render();
@@ -296,3 +296,4 @@ init();
   </script>
 </body>
 </html>
+
