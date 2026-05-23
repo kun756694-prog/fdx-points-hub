@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>FDX Points Hub</title>
+  <style>
+:root{
+  --bg:#0b0b10;
+  --card:#0f1116;
+  --muted:#9aa3b2;
+  --accent:#ff4d6d;
+  --accent-2:#00e0a6;
+  --glass: rgba(255,255,255,0.03);
+  --mono: 'Courier New', monospace;
+  font-family: Inter, system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial;
+}
+*{box-sizing:border-box}
+html,body,#app{height:100%}
+body{
+  margin:0;
+  background: linear-gradient(180deg,#050507 0%, #0b0b10 100%);
+  color:#e6eef8;
+  -webkit-font-smoothing:antialiased;
+  display:flex;
+  align-items:stretch;
+  justify-content:center;
+  padding:16px;
+}
+#app{width:100%;max-width:920px;display:flex;flex-direction:column;gap:12px}
+.header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:10px;background:linear-gradient(90deg, rgba(255,77,109,0.06), rgba(0,224,166,0.02));box-shadow: 0 2px 12px rgba(0,0,0,0.6)}
+.brand{font-weight:700;letter-spacing:0.6px}
+.controls{display:flex;gap:8px;align-items:center}
+.btn{background:var(--glass);color:var(--accent-2);border:1px solid rgba(255,255,255,0.04);padding:8px 12px;border-radius:8px;font-weight:600;cursor:pointer;min-height:40px}
+.btn.primary{background:linear-gradient(90deg,var(--accent),#ff7b8f); color:white; border:none}
+.btn.subtle{background:transparent;color:var(--muted); border:1px dashed rgba(255,255,255,0.03)}
+.btn.wide{min-width:120px}
+.btn.tiny{padding:6px 8px;font-size:13px;min-height:32px}
+.btn.disabled{opacity:0.5;pointer-events:none}
+.layout{display:grid;grid-template-columns:1fr;gap:12px}
+.card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:12px;box-shadow: 0 6px 18px rgba(6,8,12,0.6)}
+.wallet-card .row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.label{font-size:12px;color:var(--muted);margin-bottom:6px}
+.mono{font-family:var(--mono)}
+.dim{color:var(--muted)}
+.big{font-size:22px;font-weight:700;color:var(--accent-2)}
+.wallet-actions{display:flex;align-items:center;gap:12px}
+.card-title{font-weight:700;margin-bottom:8px}
+.tasks{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
+.task{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.01)}
+.task-left{display:flex;gap:10px;align-items:center}
+.task-title{font-weight:600}
+.small{font-size:12px}
+.leaderboard{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
+.lb-row{display:flex;align-items:center;justify-content:space-between;padding:8px;border-radius:8px;background:linear-gradient(90deg, rgba(0,0,0,0.2), rgba(255,255,255,0.01))}
+.rank{width:28px;text-align:center;font-weight:700;color:var(--accent)}
+.name{flex:1;margin-left:8px;color:#cfeff0}
+.points{font-weight:700;color:var(--accent-2)}
+.footer{font-size:12px;padding:8px 12px;text-align:center;border-radius:8px;opacity:0.9}
+@media (max-width:640px){
+  body{padding:10px}
+  .header,.card{padding:10px}
+  .controls .btn{padding:10px 12px; min-height:44px}
+  .wallet-actions{flex-direction:column;align-items:flex-end}
+}
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "ethers": "https://esm.sh/ethers@6.9.0",
+      "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.8"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <div class="brand">FDX Points Hub</div>
+      <div class="controls">
+        <button id="deepLinkBtn" class="btn subtle">Open in Wallet</button>
+        <button id="connectBtn" class="btn primary">Connect Wallet</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="card wallet-card">
+        <div class="row">
+          <div>
+            <div class="label">Wallet Address</div>
+            <div id="walletAddr" class="mono dim">Not connected</div>
+          </div>
+          <div class="wallet-actions">
+            <div class="balance">
+              <div class="label">FDX Points (Database)</div>
+              <div id="fdxBalance" class="big">0</div>
+            </div>
+            <button id="claimBtn" class="btn wide">Claim 50 FDX</button>
+          </div>
+        </div>
+        <div id="claimMsg" class="dim small"></div>
+      </section>
+
+      <section class="card tasks-card">
+        <div class="card-title">Tasks</div>
+        <ul id="tasksList" class="tasks"></ul>
+      </section>
+
+      <section class="card leaderboard-card">
+        <div class="card-title">Leaderboard (Top Wallets)</div>
+        <ol id="leaderboard" class="leaderboard"></ol>
+        <div id="lbNote" class="dim small">Real-time point sync from Supabase.</div>
+      </section>
+    </main>
+    <footer class="footer dim">Theme: cyberpunk-dark • FDX Point System</footer>
+  </div>
+
+  <script type="module">
+import { ethers } from "ethers";
+import { createClient } from "@supabase/supabase-js";
+
+// မင်းရဲ့ Supabase Credentials အမှန်များ
+const SUPABASE_URL = "https://uvpvldszwapaqqfrccrl.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2cHZsZHN6d2FwYXFxZnJjY3JsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgxNjIzNDIsImV4cCI6MjA2MzczODM0Mn0.U4_w6pM06ZJcl8WpU3_b_L5-7FC8-9dq-ExampleKey"; 
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const connectBtn = document.getElementById('connectBtn');
+const walletAddrEl = document.getElementById('walletAddr');
+const fdxBalanceEl = document.getElementById('fdxBalance');
+const claimBtn = document.getElementById('claimBtn');
+const claimMsg = document.getElementById('claimMsg');
+const tasksList = document.getElementById('tasksList');
+const leaderboardEl = document.getElementById('leaderboard');
+const deepLinkBtn = document.getElementById('deepLinkBtn');
+
+const FDX_DAILY_AMOUNT = 50;
+let userWalletAddress = null;
+
+let state = {
+  fdx: 0,
+  tasks: [
+    { id: 't1', title: 'Follow @FDXOfficial', reward: 10, done: false },
+    { id: 't2', title: 'Join Discord', reward: 15, done: false },
+    { id: 't3', title: 'Share a post', reward: 5, done: false }
+  ]
+};
+
+function truncateAddr(a) {
+  if (!a) return 'Not connected';
+  return a.slice(0,6) + '...' + a.slice(-4);
+}
+
+// Database ထဲက Point တွေကို လှမ်းယူမယ်
+async function fetchUserData(address) {
+  try {
+    let { data, error } = await supabase
+      .from('user_points')
+      .select('points')
+      .eq('wallet_address', address.toLowerCase())
+      .single();
+    
+    if (error && error.code === 'PGRST116') {
+      // User အသစ်ဖြစ်နေရင် Database ထဲမှာ Point 0 နဲ့ သွားဆောက်မယ်
+      await supabase
+        .from('user_points')
+        .insert([{ wallet_address: address.toLowerCase(), points: 0 }]);
+      state.fdx = 0;
+    } else if (data) {
+      state.fdx = data.points;
+    }
+    render();
+    fetchLeaderboard();
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// Database ထဲကို Point အသစ် သွားသိမ်းမယ်
+async function updatePointsInDB(newPoints) {
+  if (!userWalletAddress) return;
+  await supabase
+    .from('user_points')
+    .upsert({ wallet_address: userWalletAddress.toLowerCase(), points: newPoints });
+  state.fdx = newPoints;
+  render();
+  fetchLeaderboard();
+}
+
+// Leaderboard ကို Database ထဲကနေ ဆွဲထုတ်ပြမယ်
+async function fetchLeaderboard() {
+  let { data, error } = await supabase
+    .from('user_points')
+    .select('wallet_address, points')
+    .order('points', { ascending: false })
+    .limit(5);
+
+  if (data) {
+    leaderboardEl.innerHTML = '';
+    data.forEach((row, idx) => {
+      const li = document.createElement('li');
+      li.className = 'lb-row';
+      const isMe = userWalletAddress && row.wallet_address === userWalletAddress.toLowerCase();
+      li.innerHTML = `
+        <span class="rank">${idx+1}</span>
+        <span class="name">${truncateAddr(row.wallet_address)} ${isMe ? '(You)' : ''}</span>
+        <span class="points">${row.points}</span>
+      `;
+      leaderboardEl.appendChild(li);
+    });
+  }
+}
+
+function render() {
+  walletAddrEl.textContent = userWalletAddress ? truncateAddr(userWalletAddress) : 'Not connected';
+  fdxBalanceEl.textContent = state.fdx;
+  
+  tasksList.innerHTML = '';
+  state.tasks.forEach(task => {
+    const li = document.createElement('li');
+    li.className = 'task';
+    li.innerHTML = `
+      <div class="task-left">
+        <input type="checkbox" ${task.done ? 'checked disabled' : ''} />
+        <div>
+          <div class="task-title">${task.title}</div>
+          <div class="dim small">Reward: ${task.reward} FDX</div>
+        </div>
+      </div>
+      <button class="btn tiny ${task.done ? 'disabled' : ''}" data-id="${task.id}">${task.done ? 'Completed' : 'Claim'}</button>
+    `;
+    tasksList.appendChild(li);
+  });
+}
+
+async function connectWallet() {
+  const MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (MOBILE && !window.ethereum) {
+    window.location.href = `metamask://dapp/${window.location.hostname + window.location.pathname}`;
+    return;
+  }
+  if (!window.ethereum) {
+    claimMsg.textContent = 'No MetaMask found.';
+    return;
+  }
+  try {
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const accounts = await provider.send("eth_requestAccounts", []);
+    if (accounts.length) {
+      userWalletAddress = accounts[0];
+      claimMsg.textContent = 'Connected!';
+      await fetchUserData(userWalletAddress);
+    }
+  } catch (err) {
+    claimMsg.textContent = 'Connection failed.';
+  }
+}
+
+async function handleClaimDaily() {
+  if (!userWalletAddress) { claimMsg.textContent = 'Connect wallet first.'; return; }
+  let total = state.fdx + FDX_DAILY_AMOUNT;
+  await updatePointsInDB(total);
+  claimMsg.textContent = `Claimed ${FDX_DAILY_AMOUNT} FDX successfully!`;
+}
+
+async function handleTaskClaim(id) {
+  if (!userWalletAddress) { claimMsg.textContent = 'Connect wallet first.'; return; }
+  const task = state.tasks.find(t=>t.id===id);
+  if (!task || task.done) return;
+  task.done = true;
+  let total = state.fdx + task.reward;
+  await updatePointsInDB(total);
+  claimMsg.textContent = `Task completed! +${task.reward} FDX`;
+}
+
+function init() {
+  connectBtn.addEventListener('click', connectWallet);
+  claimBtn.addEventListener('click', handleClaimDaily);
+  tasksList.addEventListener('click', (e) => {
+    if(e.target.tagName === 'BUTTON') {
+      handleTaskClaim(e.target.dataset.id);
+    }
+  });
+  deepLinkBtn.addEventListener('click', () => {
+    window.location.href = `metamask://dapp/${window.location.hostname + window.location.pathname}`;
+  });
+  
+  const MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  connectBtn.textContent = MOBILE && !window.ethereum ? 'Open in MetaMask' : 'Connect Wallet';
+  
+  render();
+  fetchLeaderboard();
+}
+init();
+  </script>
+</body>
+</html>
