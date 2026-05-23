@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>FDX Points Hub</title>
+  <title>FDX Points Hub - Pro</title>
   <style>
 :root{
   --bg:#0b0b10;
@@ -77,7 +77,7 @@ body{
 <body>
   <div id="app">
     <header class="header">
-      <div class="brand">FDX Points Hub</div>
+      <div class="brand">FDX Points Hub 🚀</div>
       <div class="controls">
         <button id="deepLinkBtn" class="btn subtle">Open in Wallet</button>
         <button id="connectBtn" class="btn primary">Connect Wallet</button>
@@ -104,7 +104,38 @@ body{
 
       <section class="card tasks-card">
         <div class="card-title">Tasks</div>
-        <ul id="tasksList" class="tasks"></ul>
+        <ul id="tasksList" class="tasks">
+          <li class="task">
+            <div class="task-left">
+              <input type="checkbox" id="t1_check" disabled />
+              <div>
+                <div class="task-title">Follow @FDXOfficial</div>
+                <div class="dim small">Reward: 10 FDX</div>
+              </div>
+            </div>
+            <button class="btn tiny" id="t1_btn">Claim</button>
+          </li>
+          <li class="task">
+            <div class="task-left">
+              <input type="checkbox" id="t2_check" disabled />
+              <div>
+                <div class="task-title">Join Discord Server</div>
+                <div class="dim small">Reward: 15 FDX</div>
+              </div>
+            </div>
+            <button class="btn tiny" id="discordVerifyBtn">Verify Discord</button>
+          </li>
+          <li class="task">
+            <div class="task-left">
+              <input type="checkbox" id="t3_check" disabled />
+              <div>
+                <div class="task-title">Share a post</div>
+                <div class="dim small">Reward: 5 FDX</div>
+              </div>
+            </div>
+            <button class="btn tiny" id="t3_btn">Claim</button>
+          </li>
+        </ul>
       </section>
 
       <section class="card leaderboard-card">
@@ -120,39 +151,35 @@ body{
 import { ethers } from "ethers";
 import { createClient } from "@supabase/supabase-js";
 
-// Supabase Configuration (🔑 Key အမှန် ပြင်ဆင်ပြီး)
+// Supabase Connection
 const SUPABASE_URL = "https://uvpvldszwapaqqfrccrl.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_ZVgNDY0qOMwHrvDh4ZqMMw_tFC8-9dq"; 
-
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ⚙️ DISCORD CONFIGURATION (မင်းရဲ့ ID အမှန်တွေ ထည့်သွင်းပြီး)
+const DISCORD_CLIENT_ID = "1507746809567641780";
+const DISCORD_PUBLIC_KEY = "9f2843e452f5d6609deaad2a0322b32c99fa2131a7da640c95c1ed38439412b2";
+const DISCORD_GUILD_ID = "1507308988881043488";
+const REDIRECT_URI = window.location.origin + window.location.pathname;
 
 const connectBtn = document.getElementById('connectBtn');
 const walletAddrEl = document.getElementById('walletAddr');
 const fdxBalanceEl = document.getElementById('fdxBalance');
 const claimBtn = document.getElementById('claimBtn');
 const claimMsg = document.getElementById('claimMsg');
-const tasksList = document.getElementById('tasksList');
 const leaderboardEl = document.getElementById('leaderboard');
 const deepLinkBtn = document.getElementById('deepLinkBtn');
+const discordVerifyBtn = document.getElementById('discordVerifyBtn');
 
 const FDX_DAILY_AMOUNT = 50;
 let userWalletAddress = null;
-
-let state = {
-  fdx: 0,
-  tasks: [
-    { id: 't1', title: 'Follow @FDXOfficial', reward: 10, done: false },
-    { id: 't2', title: 'Join Discord', reward: 15, done: false },
-    { id: 't3', title: 'Share a post', reward: 5, done: false }
-  ]
-};
+let currentPoints = 0;
 
 function truncateAddr(a) {
   if (!a) return 'Not connected';
   return a.slice(0,6) + '...' + a.slice(-4);
 }
 
-// Database ထဲက Point တွေကို လှမ်းယူမယ်
 async function fetchUserData(address) {
   try {
     let { data, error } = await supabase
@@ -162,13 +189,12 @@ async function fetchUserData(address) {
       .maybeSingle();
     
     if (!data) {
-      // User အသစ်ဖြစ်နေရင် Database ထဲမှာ Point 0 နဲ့ သွားဆောက်မယ်
       await supabase
         .from('user_points')
         .insert([{ wallet_address: address.toLowerCase(), points: 0 }]);
-      state.fdx = 0;
+      currentPoints = 0;
     } else {
-      state.fdx = data.points;
+      currentPoints = data.points;
     }
     render();
     fetchLeaderboard();
@@ -177,18 +203,16 @@ async function fetchUserData(address) {
   }
 }
 
-// Database ထဲကို Point အသစ် သွားသိမ်းမယ်
 async function updatePointsInDB(newPoints) {
   if (!userWalletAddress) return;
   await supabase
     .from('user_points')
     .upsert({ wallet_address: userWalletAddress.toLowerCase(), points: newPoints });
-  state.fdx = newPoints;
+  currentPoints = newPoints;
   render();
   fetchLeaderboard();
 }
 
-// Leaderboard ကို Database ထဲကနေ ဆွဲထုတ်ပြမယ်
 async function fetchLeaderboard() {
   let { data, error } = await supabase
     .from('user_points')
@@ -214,24 +238,33 @@ async function fetchLeaderboard() {
 
 function render() {
   walletAddrEl.textContent = userWalletAddress ? truncateAddr(userWalletAddress) : 'Not connected';
-  fdxBalanceEl.textContent = state.fdx;
-  
-  tasksList.innerHTML = '';
-  state.tasks.forEach(task => {
-    const li = document.createElement('li');
-    li.className = 'task';
-    li.innerHTML = `
-      <div class="task-left">
-        <input type="checkbox" ${task.done ? 'checked disabled' : ''} />
-        <div>
-          <div class="task-title">${task.title}</div>
-          <div class="dim small">Reward: ${task.reward} FDX</div>
-        </div>
-      </div>
-      <button class="btn tiny ${task.done ? 'disabled' : ''}" data-id="${task.id}">${task.done ? 'Completed' : 'Claim'}</button>
-    `;
-    tasksList.appendChild(li);
-  });
+  fdxBalanceEl.textContent = currentPoints;
+}
+
+// 🔗 Discord OAuth2 Login ခလုတ်နှိပ်သည့်စနစ်
+discordVerifyBtn.addEventListener('click', () => {
+  if (!userWalletAddress) {
+    claimMsg.textContent = 'Connect wallet first.';
+    return;
+  }
+  // Discord Auth Page ဆီသွားမယ် (State ထဲမှာ Wallet Address ကိုတစ်ခါတည်း ညှပ်ထည့်ပေးလိုက်မယ်)
+  const oauthUrl = `https://discord.com/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=guilds.members.read&state=${userWalletAddress}`;
+  window.location.href = oauthUrl;
+});
+
+// URL ထဲကို Discord ဆီက Code ပြန်ကျလာရင် စစ်ဆေးမယ့်စနစ်
+async function checkDiscordCallback() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const code = urlParams.get('code');
+  const returnedState = urlParams.get('state');
+
+  if (code && returnedState) {
+    claimMsg.textContent = 'Discord Authed! Connecting with backend function to check Server Member status...';
+    discordVerifyBtn.textContent = 'Verifying...';
+    discordVerifyBtn.classList.add('disabled');
+    
+    // 💡 နောက်တစ်ဆင့်မှာ ဒီကနေတစ်ဆင့် Supabase Backend Function ဆီ လှမ်းပို့ပြီး တကယ် Join မjoin စစ်ပါမယ်
+  }
 }
 
 async function connectWallet() {
@@ -251,6 +284,7 @@ async function connectWallet() {
       userWalletAddress = accounts[0];
       claimMsg.textContent = 'Connected!';
       await fetchUserData(userWalletAddress);
+      checkDiscordCallback();
     }
   } catch (err) {
     claimMsg.textContent = 'Connection failed.';
@@ -259,29 +293,14 @@ async function connectWallet() {
 
 async function handleClaimDaily() {
   if (!userWalletAddress) { claimMsg.textContent = 'Connect wallet first.'; return; }
-  let total = state.fdx + FDX_DAILY_AMOUNT;
+  let total = currentPoints + FDX_DAILY_AMOUNT;
   await updatePointsInDB(total);
   claimMsg.textContent = `Claimed ${FDX_DAILY_AMOUNT} FDX successfully!`;
-}
-
-async function handleTaskClaim(id) {
-  if (!userWalletAddress) { claimMsg.textContent = 'Connect wallet first.'; return; }
-  const task = state.tasks.find(t=>t.id===id);
-  if (!task || task.done) return;
-  task.done = true;
-  let total = state.fdx + task.reward;
-  await updatePointsInDB(total);
-  claimMsg.textContent = `Task completed! +${task.reward} FDX`;
 }
 
 function init() {
   connectBtn.addEventListener('click', connectWallet);
   claimBtn.addEventListener('click', handleClaimDaily);
-  tasksList.addEventListener('click', (e) => {
-    if(e.target.tagName === 'BUTTON') {
-      handleTaskClaim(e.target.dataset.id);
-    }
-  });
   deepLinkBtn.addEventListener('click', () => {
     window.location.href = `metamask://dapp/${window.location.hostname + window.location.pathname}`;
   });
@@ -291,6 +310,16 @@ function init() {
   
   render();
   fetchLeaderboard();
+  
+  // URL ကို အမြဲစစ်ပေးမယ်
+  const urlParams = new URLSearchParams(window.location.search);
+  if(urlParams.get('code')) {
+    if (window.ethereum && window.ethereum.selectedAddress) {
+      connectWallet();
+    } else {
+      claimMsg.textContent = "Please Connect Wallet to finalize Discord verification.";
+    }
+  }
 }
 init();
   </script>
